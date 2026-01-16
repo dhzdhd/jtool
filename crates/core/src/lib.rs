@@ -1,25 +1,32 @@
+use std::cell::OnceCell;
+
 use regex::Regex;
-use serde_json::{Error, Map, Value};
+use serde_json::{Map, Value};
+
+use crate::error::Error;
+
+mod error;
+
+const REGEX: OnceCell<Regex> = OnceCell::new();
 
 pub fn parse(input: String) -> Result<Value, Error> {
-    let parsed_json = parse_value(Value::String(input.clone()));
-
-    parsed_json
+    parse_value(Value::String(input.clone()))
 }
 
 fn parse_value(val: Value) -> Result<Value, Error> {
-    let reg = Regex::new(r#"(^")|("$)"#).unwrap();
+    let regex_cell = REGEX;
+    let regex_str = regex_cell.get_or_init(|| Regex::new(r#"(^")|("$)"#).unwrap());
 
     match val {
         Value::String(val) => {
-            let replaced = reg.replace_all(&val, "").to_string();
+            let replaced = regex_str.replace_all(&val, "").to_string();
             match serde_json::from_str::<Value>(&replaced) {
                 Ok(parsed) => parse_value(parsed),
                 Err(err) => {
                     // Error struct does not expose this specfic error
                     match err.to_string().contains("expected value") {
                         true => Ok(Value::String(replaced)),
-                        _ => Err(err),
+                        _ => Err(Error::JSONParsing(err)),
                     }
                 }
             }
@@ -38,9 +45,8 @@ fn parse_value(val: Value) -> Result<Value, Error> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_parse_simple_json_str() {
@@ -49,6 +55,7 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30});
 
+        assert_eq!(true, actual.is_ok());
         assert_eq!(expected, actual.unwrap());
     }
 
@@ -59,6 +66,7 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30, "l": ["hi", "hello", 2]});
 
+        assert_eq!(true, actual.is_ok());
         assert_eq!(expected, actual.unwrap());
     }
 
@@ -71,6 +79,7 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30, "l": ["hi", "hello", 2], "nested": {"a": 2, "b": "hi", "c": ["hi"]}});
 
+        assert_eq!(true, actual.is_ok());
         assert_eq!(expected, actual.unwrap());
     }
 
@@ -81,7 +90,8 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30});
 
-        assert_eq!(expected, actual.map_err(|e| println!("{e:?}")).unwrap());
+        assert_eq!(true, actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
     }
 
     #[test]
@@ -91,7 +101,8 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30});
 
-        assert_eq!(expected, actual.map_err(|e| println!("{e:?}")).unwrap());
+        assert_eq!(true, actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
     }
 
     #[test]
@@ -103,7 +114,8 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30, "l": ["hi", "hello", 2], "nested": {"a": 2, "b": "hi", "c": ["hi"]}});
 
-        assert_eq!(expected, actual.map_err(|e| println!("{e:?}")).unwrap());
+        assert_eq!(true, actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
     }
 
     #[test]
@@ -115,7 +127,8 @@ mod tests {
 
         let expected = json!({"name": "John", "age": 30, "l": ["hi", "hello", 2], "nested": {"a": 2, "b": "hi", "c": ["hi"]}});
 
-        assert_eq!(expected, actual.map_err(|e| println!("{e:?}")).unwrap());
+        assert_eq!(true, actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
     }
 
     #[test]
@@ -124,6 +137,8 @@ mod tests {
             r#"{\"name\": \"John\", \"age\": 30, \"l\": [\"hi\", \"hello", 2], \"nested\": \"{\\\"a\\": 2, \\\"b\\": \\\"hi\\\", \\\"c\\\": [\\\"hi\\\"]}\"}"#,
         );
         let actual = parse(sample);
+
+        println!("{:?}", actual);
         assert_eq!(true, actual.is_err());
     }
 }
