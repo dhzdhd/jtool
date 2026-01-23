@@ -47,7 +47,6 @@ fn main() -> anyhow::Result<()> {
             input_handle.read_to_string(&mut buf)?;
             let mut output_handle = output;
 
-            println!("{buf}");
             let json = core::parse::parse(buf)?;
 
             let json_str = if prettify {
