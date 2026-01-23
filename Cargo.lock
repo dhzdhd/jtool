@@ -602,6 +602,7 @@ dependencies = [
  "clap",
  "clio",
  "core",
+ "serde_json",
 ]
 
 [[package]]

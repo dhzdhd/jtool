@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use anyhow::anyhow;
 use clap::{Parser, Subcommand, command};
 use clio::{Input, Output};
+use serde_json::json;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -20,6 +21,8 @@ enum Commands {
         input: Input,
         #[clap(value_parser, default_value = "-")]
         output: Output,
+        #[clap(long, short)]
+        prettify: bool,
     },
     /// Stringify JSON input and return the JSON string
     Stringify {
@@ -27,8 +30,8 @@ enum Commands {
         input: Input,
         #[clap(value_parser, default_value = "-")]
         output: Output,
-        #[clap(long, short, default_value = "true")]
-        prettify: bool,
+        #[clap(long, short)]
+        paths: Option<Vec<String>>,
     },
 }
 
@@ -36,14 +39,25 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Commands::Parse { input, output } => {
+        Commands::Parse {
+            input,
+            output,
+            prettify,
+        } => {
             let mut buf = String::new();
             let mut input_handle = input;
             input_handle.read_to_string(&mut buf)?;
             let mut output_handle = output;
 
-            let json = core::parse(buf)?;
-            let json_str = json.to_string();
+            println!("{buf}");
+            let json = core::parse::parse(buf)?;
+
+            let json_str = if prettify {
+                serde_json::to_string_pretty(&json)?
+            } else {
+                json.to_string()
+            };
+
             write!(output_handle, "{}", json_str)?;
 
             // Add a newline if output to stdout
@@ -56,7 +70,27 @@ fn main() -> anyhow::Result<()> {
         Commands::Stringify {
             input,
             output,
-            prettify,
-        } => Err(anyhow!("stringify not supported yet")),
+            paths,
+        } => {
+            let mut buf = String::new();
+            let mut input_handle = input;
+            input_handle.read_to_string(&mut buf)?;
+            let mut output_handle = output;
+
+            let str_paths: Option<Vec<&str>> = paths
+                .as_ref()
+                .map(|vec| vec.iter().map(|s| s.as_ref()).collect());
+            let val = json!(buf);
+            let str = core::stringify::stringify(val, str_paths)?;
+
+            write!(output_handle, "{}", str)?;
+
+            // Add a newline if output to stdout
+            if output_handle.path().is_std() {
+                println!("")
+            }
+
+            Ok(())
+        }
     }
 }
