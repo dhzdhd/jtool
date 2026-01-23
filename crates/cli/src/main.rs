@@ -1,9 +1,7 @@
 use std::io::{Read, Write};
 
-use anyhow::anyhow;
 use clap::{Parser, Subcommand, command};
 use clio::{Input, Output};
-use serde_json::json;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -80,7 +78,7 @@ fn main() -> anyhow::Result<()> {
             let str_paths: Option<Vec<&str>> = paths
                 .as_ref()
                 .map(|vec| vec.iter().map(|s| s.as_ref()).collect());
-            let val = json!(buf);
+            let val = core::parse::parse(buf)?;
             let str = core::stringify::stringify(val, str_paths)?;
 
             write!(output_handle, "{}", str)?;

@@ -9,7 +9,7 @@ fn sort_by_period_count(paths: Vec<&str>) -> Vec<&str> {
     buf
 }
 
-fn edit_val(val: &mut Value, sequence: Vec<&str>) -> Result<(), Error> {
+fn edit_val(val: &mut Value, sequence: &[&str]) -> Result<(), Error> {
     match sequence.len() {
         0 => Ok(()),
         1 => {
@@ -22,13 +22,21 @@ fn edit_val(val: &mut Value, sequence: Vec<&str>) -> Result<(), Error> {
 
                 Ok(())
             } else {
-                Err(Error::JSONStringify)
+                Err(Error::JSONStringify(format!(
+                    "Value is not an object for key - {}",
+                    sequence[0]
+                )))
             }
         }
-        _ => edit_val(
-            val.get_mut(sequence[0]).ok_or(Error::JSONStringify)?,
-            sequence,
-        ),
+        _ => {
+            let key = sequence[0];
+            let val_buf = val.clone();
+            let next_val = val.get_mut(key).ok_or(Error::JSONStringify(format!(
+                "Key not found - {}, for value - {:?}",
+                key, val_buf
+            )))?;
+            edit_val(next_val, &sequence[1..])
+        }
     }
 }
 
@@ -38,10 +46,11 @@ pub fn stringify(val: Value, paths: Option<Vec<&str>>) -> Result<String, Error> 
     let mut buf = val;
     for path in sorted_paths {
         let sequence: Vec<&str> = path.split('.').collect();
-        edit_val(&mut buf, sequence)?;
+        edit_val(&mut buf, sequence.as_slice())?;
     }
 
-    Ok(serde_json::to_string(&buf).map_err(|_| Error::JSONStringify)?)
+    Ok(serde_json::to_string(&buf)
+        .map_err(|_| Error::JSONStringify(format!("Serde stringify failed")))?)
 }
 
 #[cfg(test)]
