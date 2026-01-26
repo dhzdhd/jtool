@@ -1,7 +1,7 @@
-use std::io::Error;
-
+use iced::keyboard::key::{Code, Physical};
 use iced::widget::pane_grid::Configuration;
-use iced::widget::{button, column, pick_list, row, text};
+use iced::widget::text_editor::Binding;
+use iced::widget::{button, column, pick_list, row, space, text};
 use iced::{
     Application, Element,
     Length::Fill,
@@ -29,7 +29,7 @@ enum Message {
     PaneDragged(pane_grid::DragEvent),
     PaneResized(pane_grid::ResizeEvent),
     JsonActionSelected(JsonAction),
-    SubmitPressed(String, JsonAction),
+    SubmitPressed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,14 +81,11 @@ impl App {
             Message::JsonActionSelected,
         );
 
-        let submit_button = button(text("Submit")).on_press(Message::SubmitPressed(
-            self.left_content.text(),
-            self.action,
-        ));
+        let submit_button = button(text("Submit")).on_press(Message::SubmitPressed);
 
         let content = pane_grid(
             &self.panes,
-            |pane, pane_state, is_maximized| match pane_state {
+            |_pane, pane_state, _is_maximized| match pane_state {
                 Panes::LeftEditorPane => self.left_editor_view().into(),
                 Panes::RightEditorPane => self.right_editor_view().into(),
             },
@@ -99,7 +96,12 @@ impl App {
         .height(Fill);
 
         container(column([
-            row([dropdown.into(), submit_button.into()]).into(),
+            row([
+                dropdown.into(),
+                space::horizontal().into(),
+                submit_button.into(),
+            ])
+            .into(),
             content.into(),
         ]))
         .width(Fill)
@@ -117,6 +119,12 @@ impl App {
                 },
                 |highlight, _theme| highlight.to_format(),
             )
+            .key_binding(|key| match key.physical_key {
+                Physical::Code(code) if code == Code::Enter && key.modifiers.alt() => {
+                    Some(Binding::Custom(Message::SubmitPressed))
+                }
+                _ => Binding::from_key_press(key),
+            })
             .on_action(Message::EditInput)
             .into()
     }
@@ -154,25 +162,8 @@ impl App {
                 self.action = action;
                 Command::none()
             }
-            Message::SubmitPressed(content, action) => {
-                println!("{content}");
-                let result = match action {
-                    JsonAction::Parse => core::parse::parse(content),
-                    _ => todo!(),
-                };
-
-                match result {
-                    Ok(val) => {
-                        self.right_content.perform(text_editor::Action::SelectAll);
-                        self.right_content
-                            .perform(text_editor::Action::Edit(text_editor::Edit::Delete));
-                        self.right_content.perform(text_editor::Action::Edit(
-                            text_editor::Edit::Paste(val.to_string().into()),
-                        ))
-                    }
-                    Err(err) => println!("{err:?}"),
-                }
-
+            Message::SubmitPressed => {
+                self.submit();
                 Command::none()
             }
             _ => Command::none(),
@@ -183,15 +174,39 @@ impl App {
         String::from("JTool")
     }
 
-    fn subscription(&self) -> Subscription<Message> {
-        use keyboard::key;
+    fn submit(&mut self) {
+        let result = match self.action {
+            JsonAction::Parse => core::parse::parse(self.left_content.text()),
+            _ => todo!(),
+        };
 
+        match result {
+            Ok(val) => {
+                self.right_content.perform(text_editor::Action::SelectAll);
+                self.right_content
+                    .perform(text_editor::Action::Edit(text_editor::Edit::Delete));
+                self.right_content
+                    .perform(text_editor::Action::Edit(text_editor::Edit::Paste(
+                        val.to_string().into(),
+                    )))
+            }
+            Err(err) => println!("{err:?}"),
+        };
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
         keyboard::listen().filter_map(|event| match event {
             keyboard::Event::KeyPressed {
-                key: keyboard::Key::Named(key),
                 modifiers,
+                physical_key: Physical::Code(code),
                 ..
-            } => None,
+            } => {
+                if code == Code::Enter && modifiers.alt() {
+                    Some(Message::SubmitPressed)
+                } else {
+                    None
+                }
+            }
             _ => None,
         })
     }

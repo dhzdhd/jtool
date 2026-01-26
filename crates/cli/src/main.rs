@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
             let json = parse(buf)?;
 
             let json_str = if prettify {
-                serde_json::to_string_pretty(&json)?
+                core::parse::prettify(json)?
             } else {
                 json.to_string()
             };

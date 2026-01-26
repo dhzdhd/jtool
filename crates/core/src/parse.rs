@@ -54,6 +54,10 @@ fn parse_value(val: Value) -> Result<Value, Error> {
     }
 }
 
+pub fn prettify(val: Value) -> Result<String, Error> {
+    serde_json::to_string_pretty(&val).map_err(|_| Error::NotImplemented)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

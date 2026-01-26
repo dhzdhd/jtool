@@ -18,10 +18,6 @@ pub fn remove_spaces_str(str: String) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
-    use super::*;
-
     #[test]
     fn test_remove_spaces_from_json() {}
 
