@@ -1,3 +1,4 @@
+use iced::Padding;
 use iced::keyboard::key::{Code, Physical};
 use iced::widget::pane_grid::Configuration;
 use iced::widget::text_editor::Binding;
@@ -10,6 +11,39 @@ use iced::{
     keyboard,
     widget::{container, pane_grid, text_editor},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ParseOptions {
+    pub is_prettify_checked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StringifyOptions {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CompareOptions {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RemoveSpacesOptions {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    Parse(ParseOptions),
+    Stringify(StringifyOptions),
+    Compare(CompareOptions),
+    RemoveSpaces(RemoveSpacesOptions),
+}
+
+impl Action {
+    fn to_json_action(&self) -> JsonAction {
+        match self {
+            Action::Parse(_) => JsonAction::Parse,
+            Action::Stringify(_) => JsonAction::Stringify,
+            Action::Compare(_) => JsonAction::Compare,
+            Action::RemoveSpaces(_) => JsonAction::RemoveSpaces,
+        }
+    }
+}
 
 pub enum Panes {
     LeftEditorPane,
@@ -92,18 +126,24 @@ impl App {
         )
         .on_drag(Message::PaneDragged)
         .on_resize(10, Message::PaneResized)
-        .spacing(10)
-        .height(Fill);
+        .spacing(10);
 
-        container(column([
-            row([
-                dropdown.into(),
-                space::horizontal().into(),
-                submit_button.into(),
+        container(
+            column([
+                row(match self.action {
+                    JsonAction::Parse => vec![
+                        dropdown.into(),
+                        space::horizontal().into(),
+                        submit_button.into(),
+                    ],
+                    _ => vec![submit_button.into()],
+                })
+                .into(),
+                content.into(),
             ])
-            .into(),
-            content.into(),
-        ]))
+            .spacing(10.0),
+        )
+        .padding(Padding::new(10.0))
         .width(Fill)
         .height(Fill)
         .into()
@@ -223,5 +263,5 @@ fn application() -> Application<impl Program<Message = Message, Theme = Theme>> 
     iced::application(App::new, App::update, App::view)
         .subscription(App::subscription)
         .title(App::title)
-        .window_size((500.0, 800.0))
+        .window_size((1500.0, 800.0))
 }
