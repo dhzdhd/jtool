@@ -2611,10 +2611,12 @@ dependencies = [
 name = "gpui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "core",
  "gpui 0.2.2",
  "gpui-component",
  "gpui-component-assets",
+ "tracing",
  "tracing-subscriber",
 ]
 

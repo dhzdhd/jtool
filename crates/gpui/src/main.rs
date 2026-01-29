@@ -1,129 +1,175 @@
-use std::cell::OnceCell;
-
 use gpui::{
-    App, Application, Bounds, Context, Rgba, SharedString, Window, WindowBounds, WindowOptions,
-    div, prelude::*, px, rgb, rgba, size,
+    App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size,
 };
+use gpui_component::button::Button;
+use gpui_component::input::{Input, InputState};
+use gpui_component::resizable::{h_resizable, resizable_panel};
+use gpui_component::switch::Switch;
 use gpui_component::tab::{Tab, TabBar};
+use gpui_component::{ActiveTheme as _, Root};
+use gpui_component::{Theme, ThemeRegistry};
+use std::path::PathBuf;
+
+#[derive(Clone)]
+struct ParseData {
+    prettify: bool,
+    input_state: Entity<InputState>,
+    output_state: Entity<InputState>,
+}
+
+#[derive(Clone)]
+struct StringifyData {
+    prettify: bool,
+    input_state: Entity<InputState>,
+    output_state: Entity<InputState>,
+}
+
+#[derive(Clone)]
+struct RemoveSpacesData {
+    prettify: bool,
+    input_state: Entity<InputState>,
+    output_state: Entity<InputState>,
+}
+
+#[derive(Clone)]
+struct CompareData {
+    prettify: bool,
+    input_state: Entity<InputState>,
+    output_state: Entity<InputState>,
+}
 
 enum Action {
-    Parse(usize),
-    Stringify(),
-    RemoveSpaces(),
-    Compare(),
+    Parse(ParseData),
+    Stringify(StringifyData),
+    RemoveSpaces(RemoveSpacesData),
+    Compare(CompareData),
 }
 
-#[derive(Copy, Clone)]
-struct ColorScheme {
-    background: Rgba,
-    foreground: Rgba,
-    primary: Rgba,
-    primary_foreground: Rgba,
-    secondary: Rgba,
-    secondary_foreground: Rgba,
-    accent: Rgba,
-    accent_foreground: Rgba,
-    card: Rgba,
-    card_foreground: Rgba,
-    popover: Rgba,
-    popover_foreground: Rgba,
-    muted: Rgba,
-    muted_foreground: Rgba,
-    input: Rgba,
-    text: Rgba,
-    constructive: Rgba,
-    destructive: Rgba,
-    warning: Rgba,
-}
-
-const DARK_COLOR_SCHEME: OnceCell<ColorScheme> = OnceCell::new();
-const LIGHT_COLOR_SCHEME: OnceCell<ColorScheme> = OnceCell::new();
-
-struct HelloWorld {
-    color_scheme: ColorScheme,
-    text: SharedString,
+struct JToolApp {
     tab_selected_index: usize,
+    action: Action,
 }
 
-impl Default for HelloWorld {
-    fn default() -> Self {
+impl JToolApp {
+    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let input_state = cx.new(|cx| {
+            InputState::new(window, cx)
+                // .code_editor("json")
+                .multi_line(true)
+                .soft_wrap(false)
+                // .line_number(true)
+                // .searchable(true)
+                .placeholder(r#"{"hello": "world"}"#)
+        });
+        let output_state = cx.new(|cx| {
+            InputState::new(window, cx)
+                .code_editor("json")
+                .multi_line(true)
+                .line_number(true)
+                .searchable(true)
+                .placeholder(r#"{"hello": "world"}"#)
+        });
+
         Self {
-            color_scheme: DARK_COLOR_SCHEME
-                .get_or_init(|| ColorScheme {
-                    background: rgb(0x0f172a),
-                    foreground: rgb(0xf1f5f9),
-                    primary: rgb(0x93c5fd),
-                    primary_foreground: rgb(0x0f172a),
-                    secondary: rgb(0x64748b),
-                    secondary_foreground: rgb(0xf1f5f9),
-                    accent: rgb(0xbde0fe),
-                    accent_foreground: rgb(0x0f172a),
-                    card: rgb(0x1e293b),
-                    card_foreground: rgb(0xf1f5f9),
-                    popover: rgb(0x0f172a),
-                    popover_foreground: rgb(0xf1f5f9),
-                    muted: rgb(0x1e293b),
-                    muted_foreground: rgb(0x94a3b8),
-                    input: rgb(0x1e293b),
-                    text: rgb(0xf1f5f9),
-                    constructive: rgb(0x93fdcb),
-                    destructive: rgb(0xfca5a5),
-                    warning: rgb(0xfab560),
-                })
-                .clone(),
-            text: Default::default(),
             tab_selected_index: 0,
+            action: Action::Parse(ParseData {
+                prettify: true,
+                input_state: input_state,
+                output_state: output_state,
+            }),
         }
     }
 }
 
-fn render_tab(index: usize, title: String) -> impl IntoElement {
-    Tab::new().label("Stringify")
-}
-
-impl Render for HelloWorld {
+impl Render for JToolApp {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        let render_tab = |index: usize, title: &'static str| {
-            Tab::new()
-                .label(title)
-                .bg(if index == self.tab_selected_index {
-                    self.color_scheme.primary
-                } else {
-                    self.color_scheme.muted
-                })
-                .text_color(self.color_scheme.text)
-                .active(|s| s.bg(self.color_scheme.primary))
-                .focus(|s| s.bg(self.color_scheme.primary))
-        };
-
         div()
             .flex()
             .flex_col()
             .gap_3()
-            .bg(self.color_scheme.background)
             .flex_grow()
             .h_full()
             .w_full()
             .shadow_lg()
             .border_1()
-            .border_color(self.color_scheme.primary)
             .text_xl()
-            .text_color(self.color_scheme.text)
+            .bg(_cx.theme().background)
             .child(
-                TabBar::new("Actions")
+                TabBar::new("actions")
                     .selected_index(self.tab_selected_index)
                     .w_full()
                     .h_10()
-                    .bg(self.color_scheme.card)
-                    .text_color(self.color_scheme.card_foreground)
                     .on_click(_cx.listener(|view, selected_index, _, _| {
                         view.tab_selected_index = *selected_index;
+                        // match selected_index {
+                        // }
                     }))
-                    .child(render_tab(0, "Parse"))
-                    .child(render_tab(1, "Stringify"))
-                    .child(render_tab(2, "Remove Spaces"))
-                    .child(render_tab(3, "Compare")),
+                    .child(Tab::new().label("Parse").w_1_4())
+                    .child(Tab::new().label("Stringify").w_1_4())
+                    .child(Tab::new().label("Remove Spaces").w_1_4())
+                    .child(Tab::new().label("Compare").w_1_4()),
             )
+            .child(match &self.action {
+                Action::Parse(data) => div()
+                    .flex()
+                    .flex_col()
+                    .flex_grow()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .justify_between()
+                            .items_center()
+                            .px_2()
+                            .pb_2()
+                            .child(
+                                Switch::new("prettify-toggle")
+                                    .label("Prettify")
+                                    .text_color(_cx.theme().foreground)
+                                    .checked(data.prettify)
+                                    .on_click(_cx.listener(|view, checked, _, _| {
+                                        if let Action::Parse(data) = &view.action {
+                                            view.action = Action::Parse(ParseData {
+                                                prettify: *checked,
+                                                ..data.clone()
+                                            });
+                                        }
+                                    })),
+                            )
+                            .child(Button::new("submit-btn").label("Submit")),
+                    )
+                    .child(
+                        div().flex().flex_row().h_full().child(
+                            h_resizable("vertical-layout")
+                                .child(resizable_panel().child(Input::new(&data.input_state)))
+                                .child(
+                                    div()
+                                        .pl_1()
+                                        .h_full()
+                                        .w_full()
+                                        .child(Input::new(&data.output_state).h_full())
+                                        .into_any_element(),
+                                ),
+                        ),
+                    ),
+                _ => div(),
+            })
+    }
+}
+
+pub fn init_theme(cx: &mut App) {
+    let theme_name = SharedString::from("Tokyo Storm");
+    if let Err(err) =
+        ThemeRegistry::watch_dir(PathBuf::from("crates/gpui/assets/themes"), cx, move |cx| {
+            if let Some(theme) = ThemeRegistry::global(cx).themes().get(&theme_name).cloned() {
+                Theme::global_mut(cx).apply_config(&theme);
+            } else {
+                tracing::error!("Failed to load theme");
+            }
+        })
+    {
+        tracing::error!("Failed to watch themes directory: {}", err);
     }
 }
 
@@ -132,16 +178,23 @@ fn main() {
 
     app.run(|cx: &mut App| {
         gpui_component::init(cx);
+        init_theme(cx);
 
         let bounds = Bounds::centered(None, size(px(1500.), px(800.0)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..Default::default()
-            },
-            |_, cx| cx.new(|_| HelloWorld::default()),
-        )
-        .unwrap();
-        cx.activate(true);
+        let window_options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            ..Default::default()
+        };
+
+        cx.spawn(async move |cx| {
+            cx.open_window(window_options, |window, cx| {
+                let view = cx.new(|cx| JToolApp::new(window, cx));
+
+                cx.new(|cx| Root::new(view, window, cx))
+            })?;
+
+            Ok::<_, anyhow::Error>(())
+        })
+        .detach();
     });
 }
