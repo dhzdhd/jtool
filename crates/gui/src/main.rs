@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
+use anyhow::{Result, anyhow};
 use iced::Padding;
 use iced::keyboard::key::{Code, Physical};
 use iced::widget::pane_grid::Configuration;
-use iced::widget::text_editor::Binding;
+use iced::widget::text_editor::{Action as Act, Binding, Cursor, Edit};
 use iced::widget::{button, column, pick_list, row, space, text};
 use iced::{
     Application, Element,
@@ -11,6 +14,7 @@ use iced::{
     keyboard,
     widget::{container, pane_grid, text_editor},
 };
+use ropey::{Rope, RopeBuilder, RopeSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ParseOptions {
@@ -52,7 +56,9 @@ pub enum Panes {
 
 struct App {
     left_content: text_editor::Content,
+    left_actual_content: Rope,
     right_content: text_editor::Content,
+    right_actual_content: Rope,
     panes: pane_grid::State<Panes>,
     action: JsonAction,
 }
@@ -90,7 +96,9 @@ impl App {
         (
             Self {
                 left_content: text_editor::Content::with_text(""),
+                left_actual_content: Rope::new(),
                 right_content: text_editor::Content::with_text(""),
+                right_actual_content: Rope::new(),
                 panes: pane_grid::State::with_configuration(Configuration::Split {
                     axis: pane_grid::Axis::Vertical,
                     ratio: 0.5,
@@ -151,6 +159,7 @@ impl App {
 
     fn left_editor_view(&self) -> Element<'_, Message> {
         text_editor(&self.left_content)
+            .wrapping(text::Wrapping::None)
             .placeholder("Input")
             .highlight_with::<Highlighter>(
                 Settings {
@@ -182,10 +191,70 @@ impl App {
             .into()
     }
 
+    fn max(a: usize, b: usize) -> usize {
+        if a > b { a } else { b }
+    }
+
+    fn edit_rope(action: &Act, rope: &Rope, cursor: &Cursor) -> Result<(Rope, Rope)> {
+        let mut buf = rope.clone();
+        let mut display = Rope::new();
+
+        println!("{}", buf.to_string());
+
+        let cur_line = cursor.position.line;
+        let lines_before_cursor = buf.lines().take(cur_line);
+        let len_chars_before_line = lines_before_cursor
+            .map(|l| l.len_chars())
+            .reduce(|acc, e| acc + e)
+            .unwrap_or(0);
+        let len_chars_before_cursor = len_chars_before_line + cursor.position.column;
+
+        if let Act::Edit(edit) = action {
+            match edit {
+                Edit::Insert(c) => buf.try_insert_char(len_chars_before_cursor, *c)?,
+                Edit::Enter => buf.try_insert_char(len_chars_before_cursor, '\n')?,
+                Edit::Backspace if len_chars_before_cursor > 0 => {
+                    buf.try_remove((len_chars_before_cursor - 1)..len_chars_before_cursor)?
+                }
+                Edit::Paste(str) => buf.try_insert(len_chars_before_cursor, str.as_str())?,
+                _ => (),
+            }
+        }
+
+        let lines = buf.lines();
+        for (idx, l) in lines.enumerate() {
+            if l.len_chars() > 10000 {
+                let cursor_end = cursor.position.column + 5000;
+                let cursor_start = App::max(cursor.position.column, 5000) - 5000;
+                let cursor_range = cursor_start..cursor_end;
+
+                let slice = l.get_slice(cursor_range).unwrap_or(RopeSlice::from(""));
+                display.append(Rope::from(slice));
+            } else {
+                display.append(Rope::from(l));
+            }
+        }
+
+        Ok((display, buf))
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::EditInput(action) => {
-                self.left_content.perform(action);
+                let (display_rope, actual_rope) = App::edit_rope(
+                    &action,
+                    &self.left_actual_content,
+                    &self.left_content.cursor(),
+                )
+                .unwrap();
+                self.left_actual_content = actual_rope;
+                if let Act::Edit(text_editor::Edit::Paste(x)) = &action {
+                    self.left_content
+                        .perform(Act::Edit(Edit::Paste(Arc::from(display_rope.to_string()))));
+                } else {
+                    self.left_content.perform(action);
+                }
+
                 Command::none()
             }
             Message::PaneResized(pane_grid::ResizeEvent { split, ratio }) => {

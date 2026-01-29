@@ -55,11 +55,11 @@ impl JToolApp {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let input_state = cx.new(|cx| {
             InputState::new(window, cx)
-                // .code_editor("json")
+                .code_editor("json")
                 .multi_line(true)
                 .soft_wrap(false)
-                // .line_number(true)
-                // .searchable(true)
+                .line_number(false)
+                .searchable(false)
                 .placeholder(r#"{"hello": "world"}"#)
         });
         let output_state = cx.new(|cx| {
