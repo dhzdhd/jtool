@@ -10,3 +10,4 @@ tracing-subscriber = "0.3.22"
 core = { path = "../core" }
 ropey = "1.6.1"
 anyhow = "1.0.100"
+cosmic-text = "0.17.1"
