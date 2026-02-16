@@ -343,11 +343,15 @@ impl VirtualizedEditor {
             }
             text_editor::Motion::Down => {
                 if self.cursor_pos.row < total_lines - 1 {
-                    self.cursor_pos.row += 1;
-                    let new_line_len = self.content_buffer.line(self.cursor_pos.row).len_chars();
-                    self.cursor_pos.col = self.cursor_pos.col.min(new_line_len);
-                    let line_start = self.content_buffer.line_to_char(self.cursor_pos.row);
-                    self.cursor_pos.index = line_start + self.cursor_pos.col;
+                    let new_line = self.content_buffer.line(self.cursor_pos.row + 1);
+                    let new_line_len =
+                        if new_line.char(new_line.len_chars().saturating_sub(1)) == '\n' {
+                            new_line.len_chars().saturating_sub(1)
+                        } else {
+                            new_line.len_chars()
+                        };
+
+                    self.update_row_col_index(UpdatePos::Update(1), UpdatePos::Min(new_line_len));
                 }
             }
             text_editor::Motion::Home => {
@@ -361,9 +365,7 @@ impl VirtualizedEditor {
                 self.cursor_pos.index = line_start + line_len;
             }
             text_editor::Motion::DocumentStart => {
-                self.cursor_pos.row = 0;
-                self.cursor_pos.col = 0;
-                self.cursor_pos.index = 0;
+                self.update_row_col_index(UpdatePos::Set(0), UpdatePos::Set(0));
             }
             text_editor::Motion::DocumentEnd => {
                 self.cursor_pos.row = total_lines.saturating_sub(1);

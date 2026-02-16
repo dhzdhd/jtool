@@ -1,4 +1,3 @@
-use iced::Padding;
 use iced::keyboard::key::{Code, Physical};
 use iced::widget::pane_grid::Configuration;
 use iced::widget::text_editor::Binding;
@@ -11,6 +10,7 @@ use iced::{
     keyboard,
     widget::{container, pane_grid, text_editor},
 };
+use iced::{Font, Padding};
 
 use crate::editor::VirtualizedEditor;
 
@@ -158,6 +158,7 @@ impl App {
 
     fn left_editor_view(&self) -> Element<'_, Message> {
         text_editor(&self.left_editor.display_content)
+            .font(Font::MONOSPACE)
             .wrapping(text::Wrapping::None)
             .placeholder("Input")
             .highlight_with::<Highlighter>(
@@ -179,6 +180,7 @@ impl App {
 
     fn right_editor_view(&self) -> Element<'_, Message> {
         text_editor(&self.right_editor.display_content)
+            .font(Font::MONOSPACE)
             .placeholder("Output")
             .highlight_with::<Highlighter>(
                 Settings {
