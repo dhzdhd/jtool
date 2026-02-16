@@ -43,6 +43,11 @@ impl Default for VirtualizedEditor {
     }
 }
 
+enum UpdatePos {
+    Update(isize),
+    Set(usize),
+}
+
 impl VirtualizedEditor {
     pub fn new(text: &str, line_char_capacity: usize) -> Self {
         let content_buffer = Rope::from_str(text);
@@ -253,6 +258,40 @@ impl VirtualizedEditor {
         Task::none()
     }
 
+    fn update_row_col_index(&mut self, row_update_by: UpdatePos, col_update_by: UpdatePos) {
+        self.cursor_pos.row = match row_update_by {
+            UpdatePos::Update(x) => self.cursor_pos.row.saturating_add_signed(x),
+            UpdatePos::Set(x) => x,
+        };
+
+        self.cursor_pos.col = match col_update_by {
+            UpdatePos::Update(x) => self.cursor_pos.col.saturating_add_signed(x),
+            UpdatePos::Set(x) => x,
+        };
+
+        self.update_index()
+    }
+
+    fn update_index(&mut self) {
+        let row = self.cursor_pos.row;
+        let col = self.cursor_pos.col;
+
+        self.cursor_pos.index = if row < self.content_buffer.len_lines() {
+            let line_len = self.content_buffer.line(row).len_chars();
+
+            let col = if line_len > self.viewport_details.capacity {
+                self.viewport_details.start + col
+            } else {
+                col
+            };
+
+            let line_start = self.content_buffer.line_to_char(row);
+            line_start + col
+        } else {
+            self.content_buffer.len_chars()
+        }
+    }
+
     fn handle_move(&mut self, motion: text_editor::Motion) {
         let total_lines = self.content_buffer.len_lines();
         let line_len = if self.cursor_pos.row < total_lines {
@@ -264,14 +303,14 @@ impl VirtualizedEditor {
         match motion {
             text_editor::Motion::Left => {
                 if self.cursor_pos.col > 0 {
-                    self.cursor_pos.col -= 1;
-                    self.cursor_pos.index -= 1;
+                    self.update_row_col_index(UpdatePos::Update(0), UpdatePos::Update(-1));
                 } else if self.cursor_pos.row > 0 {
-                    self.cursor_pos.row -= 1;
-                    let new_line_len = self.content_buffer.line(self.cursor_pos.row).len_chars();
-                    self.cursor_pos.col = new_line_len.saturating_sub(1);
-                    let line_start = self.content_buffer.line_to_char(self.cursor_pos.row);
-                    self.cursor_pos.index = line_start + self.cursor_pos.col;
+                    let new_line_len = self
+                        .content_buffer
+                        .line(self.cursor_pos.row - 1)
+                        .len_chars();
+                    let col = new_line_len.saturating_sub(1);
+                    self.update_row_col_index(UpdatePos::Update(-1), UpdatePos::Set(col));
                 }
             }
             text_editor::Motion::Right => {
@@ -279,13 +318,11 @@ impl VirtualizedEditor {
                     "cursor_pos {:?}, line_len {}, total_lines {}",
                     self.cursor_pos, line_len, total_lines
                 );
+
                 if self.cursor_pos.col < line_len {
-                    self.cursor_pos.col += 1;
-                    self.cursor_pos.index += 1;
+                    self.update_row_col_index(UpdatePos::Update(0), UpdatePos::Update(1));
                 } else if self.cursor_pos.row < total_lines - 1 {
-                    self.cursor_pos.row += 1;
-                    self.cursor_pos.col = 0;
-                    self.cursor_pos.index = self.content_buffer.line_to_char(self.cursor_pos.row);
+                    self.update_row_col_index(UpdatePos::Update(1), UpdatePos::Set(0));
                 }
             }
             text_editor::Motion::Up => {
