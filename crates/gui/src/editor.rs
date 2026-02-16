@@ -328,6 +328,7 @@ impl VirtualizedEditor {
                 }
             }
             text_editor::Motion::Right => {
+                // TODO: Fix right working only on the second try at the start of a line
                 if self.cursor_pos.col < line_len {
                     self.update_row_col_index(UpdatePos::None, UpdatePos::Update(1));
                 } else if self.cursor_pos.row < total_lines - 1 {
@@ -361,17 +362,16 @@ impl VirtualizedEditor {
                 self.update_row_col_index(UpdatePos::None, UpdatePos::Set(0));
             }
             text_editor::Motion::End => {
-                self.cursor_pos.col = line_len;
-                let line_start = self.content_buffer.line_to_char(self.cursor_pos.row);
-                self.cursor_pos.index = line_start + line_len;
+                self.update_row_col_index(UpdatePos::None, UpdatePos::Set(line_len));
             }
             text_editor::Motion::DocumentStart => {
                 self.update_row_col_index(UpdatePos::Set(0), UpdatePos::Set(0));
             }
             text_editor::Motion::DocumentEnd => {
-                self.cursor_pos.row = total_lines.saturating_sub(1);
-                self.cursor_pos.col = self.content_buffer.line(self.cursor_pos.row).len_chars();
-                self.cursor_pos.index = self.content_buffer.len_chars();
+                let row = total_lines.saturating_sub(1);
+                let col = self.content_buffer.line(row).len_chars();
+
+                self.update_row_col_index(UpdatePos::Set(row), UpdatePos::Set(col));
             }
             _ => {
                 // Let display handle other motions
