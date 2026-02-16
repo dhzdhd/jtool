@@ -1,6 +1,6 @@
 use iced::{
     Task,
-    widget::text_editor::{self, Action, Edit},
+    widget::text_editor::{self, Action, Content, Edit},
 };
 use ropey::Rope;
 
@@ -23,6 +23,7 @@ pub struct VirtualizedEditor {
     pub content_buffer: Rope,
     pub cursor_pos: CursorPosition,
     viewport_details: ViewportDetails,
+    selection_start_pos: Option<CursorPosition>,
 }
 
 impl Default for VirtualizedEditor {
@@ -39,6 +40,7 @@ impl Default for VirtualizedEditor {
                 capacity: 5000,
                 start: 0,
             },
+            selection_start_pos: None,
         }
     }
 }
@@ -67,6 +69,7 @@ impl VirtualizedEditor {
                 capacity: line_char_capacity,
                 start: 0,
             },
+            selection_start_pos: None,
         };
 
         editor.rebuild_display();
@@ -243,17 +246,25 @@ impl VirtualizedEditor {
 
     pub fn perform(&mut self, action: Action) -> Task<()> {
         match &action {
+            // TODO: Calculate selection starting position
+            // (can check pos - after setting to 0 - when selection Some and stop checking when None)
             Action::Edit(edit) => {
-                self.handle_edit(edit.clone());
+                self.handle_edit(edit.clone(), self.selection_start_pos);
+                self.selection_start_pos = None;
             }
             Action::Move(motion) => {
                 self.handle_move(motion.clone());
+                self.selection_start_pos = None;
             }
             Action::Select(_) => {
+                if self.selection_start_pos.is_none() {
+                    self.selection_start_pos = Some(self.cursor_pos);
+                }
                 self.display_content.perform(action);
                 self.sync_cursor_from_display();
             }
             _ => {
+                self.selection_start_pos = None;
                 self.display_content.perform(action);
             }
         }
@@ -308,11 +319,6 @@ impl VirtualizedEditor {
         } else {
             0
         };
-
-        println!(
-            "motion: {:?}, cursor_pos {:?}, line_len {}, total_lines {}",
-            motion, self.cursor_pos, line_len, total_lines
-        );
 
         match motion {
             text_editor::Motion::Left => {
@@ -385,7 +391,14 @@ impl VirtualizedEditor {
         self.rebuild_display();
     }
 
-    fn handle_edit(&mut self, edit: Edit) {
+    fn handle_edit(&mut self, edit: Edit, selection: Option<CursorPosition>) {
+        if let Some(sel) = selection {
+            let start = self.cursor_pos.index.min(sel.index);
+            let end = self.cursor_pos.index.max(sel.index);
+
+            self.content_buffer.remove(start..end);
+        }
+
         match edit {
             Edit::Insert(ch) => {
                 self.content_buffer.insert_char(self.cursor_pos.index, ch);
