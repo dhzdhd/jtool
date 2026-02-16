@@ -48,6 +48,7 @@ enum UpdatePos {
     Set(usize),
     Min(usize),
     Max(usize),
+    None,
 }
 
 impl VirtualizedEditor {
@@ -262,6 +263,7 @@ impl VirtualizedEditor {
 
     fn update_row_col_index(&mut self, row_update_by: UpdatePos, col_update_by: UpdatePos) {
         self.cursor_pos.row = match row_update_by {
+            UpdatePos::Update(0) | UpdatePos::None => self.cursor_pos.row,
             UpdatePos::Update(x) => self.cursor_pos.row.saturating_add_signed(x),
             UpdatePos::Set(x) => x,
             UpdatePos::Min(x) => self.cursor_pos.row.min(x),
@@ -269,6 +271,7 @@ impl VirtualizedEditor {
         };
 
         self.cursor_pos.col = match col_update_by {
+            UpdatePos::Update(0) | UpdatePos::None => self.cursor_pos.col,
             UpdatePos::Update(x) => self.cursor_pos.col.saturating_add_signed(x),
             UpdatePos::Set(x) => x,
             UpdatePos::Min(x) => self.cursor_pos.col.min(x),
@@ -314,7 +317,7 @@ impl VirtualizedEditor {
         match motion {
             text_editor::Motion::Left => {
                 if self.cursor_pos.col > 0 {
-                    self.update_row_col_index(UpdatePos::Update(0), UpdatePos::Update(-1));
+                    self.update_row_col_index(UpdatePos::None, UpdatePos::Update(-1));
                 } else if self.cursor_pos.row > 0 {
                     let new_line_len = self
                         .content_buffer
@@ -326,7 +329,7 @@ impl VirtualizedEditor {
             }
             text_editor::Motion::Right => {
                 if self.cursor_pos.col < line_len {
-                    self.update_row_col_index(UpdatePos::Update(0), UpdatePos::Update(1));
+                    self.update_row_col_index(UpdatePos::None, UpdatePos::Update(1));
                 } else if self.cursor_pos.row < total_lines - 1 {
                     self.update_row_col_index(UpdatePos::Update(1), UpdatePos::Set(0));
                 }
@@ -355,9 +358,7 @@ impl VirtualizedEditor {
                 }
             }
             text_editor::Motion::Home => {
-                self.cursor_pos.col = 0;
-                let line_start = self.content_buffer.line_to_char(self.cursor_pos.row);
-                self.cursor_pos.index = line_start;
+                self.update_row_col_index(UpdatePos::None, UpdatePos::Set(0));
             }
             text_editor::Motion::End => {
                 self.cursor_pos.col = line_len;
